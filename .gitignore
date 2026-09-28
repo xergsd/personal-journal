@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+data/diary.db*
+data/secret.key
+.DS_Store
+data/server.log

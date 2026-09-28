@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Дневник</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='3' width='22' height='26' rx='2' fill='%23FBFBF8' stroke='%2324262B' stroke-width='2'/%3E%3Ccircle cx='11' cy='11' r='1.3' fill='%232F4C7A'/%3E%3Ccircle cx='16' cy='11' r='1.3' fill='%232F4C7A'/%3E%3Ccircle cx='21' cy='11' r='1.3' fill='%232F4C7A'/%3E%3Ccircle cx='11' cy='16' r='1.3' fill='%232F4C7A'/%3E%3Ccircle cx='16' cy='16' r='1.3' fill='%232F4C7A'/%3E%3Ccircle cx='11' cy='21' r='1.3' fill='%232F4C7A'/%3E%3C/svg%3E">
+  <!-- Тема ставится до загрузки стилей, чтобы вечером не мигал белый экран. -->
+  <script>
+    try {
+      var t = localStorage.getItem("diary.theme") || "auto";
+      var h = new Date().getHours();
+      if (t === "auto") t = (h >= 20 || h < 6) ? "dark" : "light";
+      document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+  <link rel="preload" href="/static/fonts/caveat-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/lora-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script type="module" src="/static/js/app.js"></script>
+</head>
+<body>
+  <div class="app">
+    <nav class="nav" id="nav" hidden>
+      <div class="brand">Дневник</div>
+      <a class="nav-item" href="/" data-link data-section="write">Писать</a>
+      <a class="nav-item" href="/entries" data-link data-section="entries">Записи</a>
+      <span class="nav-item soon" title="Появится в следующей итерации">Трекер</span>
+      <span class="nav-item soon" title="Появится позже">Статистика</span>
+      <span class="nav-item soon" title="Появится позже">Неделя</span>
+      <div class="nav-bottom">
+        <button class="nav-small" id="theme-toggle" type="button"></button>
+        <a class="nav-small" href="/settings" data-link data-section="settings">Настройки</a>
+        <button class="nav-small" id="lock" type="button">Закрыть на PIN</button>
+      </div>
+    </nav>
+    <main class="view" id="view"></main>
+  </div>
+
+  <!-- ========== Шаблоны экранов ========== -->
+
+  <template id="tpl-pin">
+    <section class="pin">
+      <h1 class="pin-title">Дневник</h1>
+      <p class="pin-hint" data-hint></p>
+      <form class="pin-form" data-form autocomplete="off">
+        <input class="pin-input" id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" aria-label="PIN" autofocus>
+        <button class="btn" type="submit" data-submit>Войти</button>
+      </form>
+      <p class="pin-error" data-error role="alert"></p>
+    </section>
+  </template>
+
+  <template id="tpl-writer">
+    <article class="writer">
+      <header class="writer-meta">
+        <span class="writer-date" data-date></span>
+        <div class="type-switch" role="radiogroup" aria-label="Тип записи">
+          <button type="button" role="radio" data-type="morning">утро</button>
+          <button type="button" role="radio" data-type="evening">вечер</button>
+          <button type="button" role="radio" data-type="free">свободная</button>
+        </div>
+        <span class="save-status" data-status aria-live="polite"></span>
+      </header>
+
+      <figure class="quote" data-quote hidden>
+        <blockquote data-quote-text></blockquote>
+        <figcaption>— <span data-quote-author></span><span class="quote-source" data-quote-source></span></figcaption>
+      </figure>
+
+      <div class="title-wrap">
+        <div class="title-mirror" aria-hidden="true"><span data-title-mirror></span></div>
+        <textarea class="title-input" id="entry-title" rows="1" placeholder="О чём эта запись?" aria-label="Заголовок" data-title></textarea>
+      </div>
+      <p class="title-hint" data-title-hint role="alert"></p>
+
+      <textarea class="body-input" id="entry-text" placeholder="Пиши как есть…" aria-label="Текст записи" data-text></textarea>
+
+      <footer class="writer-actions">
+        <span class="shortcut">⌘ + Enter</span>
+        <button class="btn" type="button" data-finish>Завершить запись</button>
+      </footer>
+    </article>
+  </template>
+
+  <template id="tpl-closing">
+    <section class="closing">
+      <p class="closing-kicker">Запись сохранена</p>
+      <h1 class="closing-title" data-title></h1>
+
+      <div class="scale-block">
+        <h2 class="hand-h">Настроение</h2>
+        <div class="scale" data-scale="mood" role="radiogroup" aria-label="Настроение от 1 до 10"></div>
+      </div>
+      <div class="scale-block">
+        <h2 class="hand-h">Энергия</h2>
+        <div class="scale" data-scale="energy" role="radiogroup" aria-label="Энергия от 1 до 10"></div>
+      </div>
+      <div class="scale-block">
+        <h2 class="hand-h">Теги</h2>
+        <div class="tags" data-tags></div>
+        <form class="tag-add" data-tag-form>
+          <input id="new-tag" type="text" maxlength="40" placeholder="+ свой тег" aria-label="Новый тег" data-tag-input>
+        </form>
+      </div>
+
+      <div class="closing-actions">
+        <button class="btn" type="button" data-save>Сохранить</button>
+        <button class="btn-text" type="button" data-skip>Пропустить</button>
+      </div>
+    </section>
+  </template>
+
+  <template id="tpl-entries">
+    <section class="entries">
+      <header class="page-head">
+        <h1 class="hand-h1">Записи</h1>
+        <a class="btn" href="/new" data-link>Новая запись</a>
+      </header>
+      <div data-list></div>
+    </section>
+  </template>
+
+  <template id="tpl-settings">
+    <section class="settings">
+      <h1 class="hand-h1">Настройки</h1>
+
+      <div class="settings-block">
+        <h2 class="hand-h">Тема</h2>
+        <div class="radio-row" role="radiogroup" aria-label="Тема" data-theme-choice>
+          <label><input type="radio" name="theme" id="theme-auto" value="auto"> Авто <span class="muted">(тёмная с 20:00 до 6:00)</span></label>
+          <label><input type="radio" name="theme" id="theme-light" value="light"> Светлая</label>
+          <label><input type="radio" name="theme" id="theme-dark" value="dark"> Тёмная</label>
+        </div>
+      </div>
+
+      <div class="settings-block">
+        <h2 class="hand-h">Сменить PIN</h2>
+        <form class="pin-change" data-pin-form autocomplete="off">
+          <input id="old-pin" type="password" inputmode="numeric" maxlength="8" placeholder="Старый PIN" aria-label="Старый PIN">
+          <input id="new-pin" type="password" inputmode="numeric" maxlength="8" placeholder="Новый PIN" aria-label="Новый PIN">
+          <button class="btn" type="submit">Сменить</button>
+        </form>
+        <p class="form-msg" data-pin-msg role="status"></p>
+      </div>
+
+      <div class="settings-block">
+        <h2 class="hand-h">Ссылки для напоминаний</h2>
+        <p class="muted">Вставь их в описание событий Google Calendar — ссылка сразу откроет новую запись нужного типа.</p>
+        <ul class="links">
+          <li><span>Утро</span><code>http://localhost:8000/new?type=morning</code></li>
+          <li><span>Вечер</span><code>http://localhost:8000/new?type=evening</code></li>
+        </ul>
+      </div>
+    </section>
+  </template>
+</body>
+</html>
